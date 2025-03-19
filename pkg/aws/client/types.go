@@ -10,6 +10,8 @@ import (
 	"sort"
 
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	apisaws "github.com/gardener/gardener-extension-provider-aws/pkg/apis/aws"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 )
@@ -47,8 +49,10 @@ type Interface interface {
 	GetNATGatewayAddressAllocations(ctx context.Context, shootNamespace string) (sets.Set[string], error)
 
 	// S3 wrappers
+	GetS3Client() s3.Client
+	CreateBucket(ctx context.Context, bucket, region string, backupbucketConfig *apisaws.BackupBucketConfig) error
+	UpdateBucket(ctx context.Context, bucket, region string, backupbucketConfig *apisaws.BackupBucketConfig, isVersioningEnabled bool) error
 	DeleteObjectsWithPrefix(ctx context.Context, bucket, prefix string) error
-	CreateBucketIfNotExists(ctx context.Context, bucket, region string) error
 	DeleteBucketIfExists(ctx context.Context, bucket string) error
 
 	// Route53 wrappers

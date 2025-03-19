@@ -6,14 +6,22 @@ package backupbucket
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/gardener/gardener/extensions/pkg/controller/backupbucket"
 	"github.com/gardener/gardener/extensions/pkg/util"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/gardener/gardener-extension-provider-aws/pkg/admission/validator"
+	apisaws "github.com/gardener/gardener-extension-provider-aws/pkg/apis/aws"
 	"github.com/gardener/gardener-extension-provider-aws/pkg/apis/aws/helper"
 	"github.com/gardener/gardener-extension-provider-aws/pkg/aws"
 )
@@ -29,13 +37,57 @@ func newActuator(mgr manager.Manager) backupbucket.Actuator {
 	}
 }
 
-func (a *actuator) Reconcile(ctx context.Context, _ logr.Logger, bb *extensionsv1alpha1.BackupBucket) error {
+func (a *actuator) Reconcile(ctx context.Context, logger logr.Logger, bb *extensionsv1alpha1.BackupBucket) error {
+	logger.Info("Starting reconciliation for BackupBucket...")
+
 	awsClient, err := aws.NewClientFromSecretRef(ctx, a.client, bb.Spec.SecretRef, bb.Spec.Region)
 	if err != nil {
 		return util.DetermineError(err, helper.KnownCodes)
 	}
 
-	return util.DetermineError(awsClient.CreateBucketIfNotExists(ctx, bb.Name, bb.Spec.Region), helper.KnownCodes)
+	/*
+		1. create s3 client
+		2. decode the backupbucket config.
+		3. Check if bucket already exist or not.
+		4. If bucket doesn't exist
+		    - then create a new bucket according to backupbucketConfig, if provided.
+		   If bucket exist
+		    - check isUpdateRequired
+		      * If yes then update the backup bucket according to backupbucketConfig(if provided)
+		    otherwise do nothing.
+	*/
+	s3client := awsClient.GetS3Client()
+
+	var backupbucketConfig *apisaws.BackupBucketConfig
+	if bb.Spec.ProviderConfig != nil {
+		backupbucketConfig, err = validator.DecodeBackupBucketConfig(serializer.NewCodecFactory(a.client.Scheme(), serializer.EnableStrict).UniversalDecoder(), bb.Spec.ProviderConfig)
+		if err != nil {
+			logger.Error(err, "Failed to decode provider config")
+			return err
+		}
+	}
+
+	bucketVersioningStatus, err := s3client.GetBucketVersioning(ctx, &s3.GetBucketVersioningInput{
+		Bucket: awsV2.String(bb.Name),
+	})
+	if err != nil {
+		var noSuchBucket *s3types.NoSuchBucket
+		if errors.As(err, &noSuchBucket) {
+			// bucket doesn't exist, create the bucket with buckupbucketConfig(if provided)
+			return util.DetermineError(awsClient.CreateBucket(ctx, bb.Name, bb.Spec.Region, backupbucketConfig), helper.KnownCodes)
+		}
+	}
+
+	if bucketVersioningStatus != nil && bucketVersioningStatus.Status == s3types.BucketVersioningStatusEnabled {
+		// versioning is found to be enabled on bucket
+		if isBucketUpdateRequired(ctx, s3client, bb.Name, backupbucketConfig) {
+			return util.DetermineError(awsClient.UpdateBucket(ctx, bb.Name, bb.Spec.Region, backupbucketConfig, false), helper.KnownCodes)
+		}
+	}
+
+	// object versioning is not found to be enabled on bucket
+	// update the bucket according to buckupbucketConfig(if provided)
+	return util.DetermineError(awsClient.UpdateBucket(ctx, bb.Name, bb.Spec.Region, backupbucketConfig, true), helper.KnownCodes)
 }
 
 func (a *actuator) Delete(ctx context.Context, _ logr.Logger, bb *extensionsv1alpha1.BackupBucket) error {
@@ -45,4 +97,29 @@ func (a *actuator) Delete(ctx context.Context, _ logr.Logger, bb *extensionsv1al
 	}
 
 	return util.DetermineError(awsClient.DeleteBucketIfExists(ctx, bb.Name), helper.KnownCodes)
+}
+
+func isBucketUpdateRequired(ctx context.Context, s3client s3.Client, bucket string, backupbucketConfig *apisaws.BackupBucketConfig) bool {
+	if backupbucketConfig == nil || backupbucketConfig.Immutability == nil {
+		return false
+	}
+
+	if objectConfig, _ := s3client.GetObjectLockConfiguration(ctx, &s3.GetObjectLockConfigurationInput{
+		Bucket: awsV2.String(bucket),
+	}); objectConfig != nil && objectConfig.ObjectLockConfiguration != nil && objectConfig.ObjectLockConfiguration.ObjectLockEnabled == s3types.ObjectLockEnabledEnabled {
+		// If object lock is enabled for bucket then check the Rules defined for bucket
+		if objectConfig.ObjectLockConfiguration.Rule.DefaultRetention.Days == awsV2.Int32(int32(backupbucketConfig.Immutability.RetentionPeriod.Duration/(24*time.Hour))) &&
+			objectConfig.ObjectLockConfiguration.Rule.DefaultRetention.Mode == getBucketMode(backupbucketConfig.Immutability.Mode) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func getBucketMode(mode string) s3types.ObjectLockRetentionMode {
+	if mode == "governance" {
+		return s3types.ObjectLockRetentionModeGovernance
+	}
+	return s3types.ObjectLockRetentionModeCompliance
 }
