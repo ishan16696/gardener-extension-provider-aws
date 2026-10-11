@@ -1,0 +1,79 @@
+ocm:
+  component_name: github.com/gardener/machine-controller-manager-provider-aws
+  component_version: v0.28.0
+release_notes:
+- audience: user
+  author:
+    hostname: github.com
+    type: githubUser
+    username: shreyas-s-rao
+  category: feature
+  contents: Add `InstanceMarketOptions.MarketType` to specify market-type options
+    such as `spot`, `capacity-block` (ML capacity block reservations), etc.
+  mimetype: text/markdown
+  reference: '[#247](https://github.com/gardener/machine-controller-manager-provider-aws/pull/247)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: hebelsan
+  category: other
+  contents: Add support for enabling instance IPv6 IMDS
+  mimetype: text/markdown
+  reference: '[#234](https://github.com/gardener/machine-controller-manager-provider-aws/pull/234)'
+  type: standard
+- audience: user
+  author:
+    hostname: github.com
+    type: githubUser
+    username: shreyas-s-rao
+  category: noteworthy
+  contents: '`SpotPrice` is now deprecated, and will be removed in a future release.
+    Please use `InstanceMarketOptions.MarketType: spot` instead.'
+  mimetype: text/markdown
+  reference: '[#247](https://github.com/gardener/machine-controller-manager-provider-aws/pull/247)'
+  type: standard
+- audience: user
+  author:
+    hostname: github.com
+    type: githubUser
+    username: shreyas-s-rao
+  category: bugfix
+  contents: Fix SourceDestCheck validation for EFA instances causing machines to get
+    stuck in Uninitialized state
+  mimetype: text/markdown
+  reference: '[#247](https://github.com/gardener/machine-controller-manager-provider-aws/pull/247)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: takoverflow
+  category: other
+  contents: Golang version used is now upgraded to `1.26.2`
+  mimetype: text/markdown
+  reference: '[#244](https://github.com/gardener/machine-controller-manager-provider-aws/pull/244)'
+  type: standard
+- audience: user
+  author:
+    hostname: github.com
+    type: githubUser
+    username: shreyas-s-rao
+  category: feature
+  contents: Add support for EFA network interfaces (InterfaceType, NetworkCardIndex,
+    DeviceIndex) in EC2 instance creation
+  mimetype: text/markdown
+  reference: '[#247](https://github.com/gardener/machine-controller-manager-provider-aws/pull/247)'
+  type: standard
+- audience: user
+  author:
+    hostname: github.com
+    type: githubUser
+    username: shreyas-s-rao
+  category: feature
+  contents: Add placement group, tenancy, and dedicated host configuration support
+    via providerSpec
+  mimetype: text/markdown
+  reference: '[#247](https://github.com/gardener/machine-controller-manager-provider-aws/pull/247)'
+  type: standard
