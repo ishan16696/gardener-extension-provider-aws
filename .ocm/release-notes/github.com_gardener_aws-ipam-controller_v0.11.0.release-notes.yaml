@@ -1,0 +1,28 @@
+ocm:
+  component_name: github.com/gardener/aws-ipam-controller
+  component_version: v0.11.0
+release_notes:
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: DockToFuture
+  category: fix
+  contents: 'Fixed a goroutine leak in the CIDR allocator: if state reconciliation
+    failed or the controller context was cancelled mid-reconcile, in-flight node events
+    would block forever on the reconcile-ready signal.'
+  mimetype: text/markdown
+  reference: '[#374](https://github.com/gardener/aws-ipam-controller/pull/374)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: axel7born
+  category: fix
+  contents: |-
+    Fixed a panic on node deletion in dual-stack clusters with IPv6-primary address family that caused the controller to restart on every node removal.
+    Fixed a race condition on controller restart that could assign a CIDR already in use, leaving affected nodes with pod networking failures until the next restart.
+  mimetype: text/markdown
+  reference: '[#373](https://github.com/gardener/aws-ipam-controller/pull/373)'
+  type: standard
